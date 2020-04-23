@@ -6,7 +6,6 @@ open import Level
 open import Function using (_∘_)
 open import Relation.Binary.PropositionalEquality 
 
-
 open ≡-Reasoning
 
 postulate
@@ -22,11 +21,6 @@ refl ≡$ x = refl
 _$≡_ : ∀ {l l'}{A : Set l} {B : Set l'} {x y : A} →
        (f : A -> B) -> x ≡ y → f x ≡ f y
 f $≡ refl = refl
-
-
-_⟨≡_,_⟩  : ∀ {l l' l''}{A : Set l} {B : Set l'} {C : Set l''} {a a' : A}
-       (f : A -> B -> C) -> a ≡ a' -> (b : B) → f a b ≡ f a' b
-f ⟨≡ refl , b ⟩ = refl
 
 
 data Proxy 
