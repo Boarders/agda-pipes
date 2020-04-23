@@ -1,0 +1,3 @@
+depend: standard-library
+        agda-categories
+        .
