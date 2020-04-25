@@ -4,7 +4,7 @@ open import Categories.Functor
 open import Categories.Category.Instance.Sets
 open import Level
 open import Function using (_∘_)
-open import Relation.Binary.PropositionalEquality 
+open import Relation.Binary.PropositionalEquality
 
 open ≡-Reasoning
 
@@ -22,15 +22,28 @@ _$≡_ : ∀ {l l'}{A : Set l} {B : Set l'} {x y : A} →
        (f : A -> B) -> x ≡ y → f x ≡ f y
 f $≡ refl = refl
 
+{-
 
+ Upstream | Downstream
+     +---------+
+     |         |
+ a' <==       <== b'
+     |         |
+ a  ==>       ==> b
+     |    |    |
+     +----|----+
+          v
+          r
+
+-}
 data Proxy 
        (m : Set -> Set)
        (a' a b' b : Set)
        (r : Set)  : Set₁ where
   pure    : r -> Proxy m a' a b' b r
-  effect  : ∀{x} -> m x ->  (x -> Proxy m a' a b' b r) -> Proxy m a' a b' b r
-  request : a'       ->  (a -> Proxy m a' a b' b r) -> Proxy m a' a b' b r
-  respond : b'       ->  (b -> Proxy m a' a b' b r) -> Proxy m a' a b' b r
+  effect  : ∀{x} -> m x ->  (x  -> Proxy m a' a b' b r) -> Proxy m a' a b' b r
+  request : a'          ->  (a  -> Proxy m a' a b' b r) -> Proxy m a' a b' b r
+  respond : b           ->  (b' -> Proxy m a' a b' b r) -> Proxy m a' a b' b r
 
 
 1ℓ : Level
@@ -45,14 +58,38 @@ map-proxy
 map-proxy m f (pure r) = pure (f r)
 map-proxy m f (effect mx cont[x])
   = effect mx (map-proxy m f ∘ cont[x])
-map-proxy m f (request t[a'] cont[a])
-  = request t[a'] ((map-proxy m f) ∘ cont[a])
-map-proxy m f (respond t[b'] cont[b]) 
-  = respond t[b'] ((map-proxy m f) ∘ cont[b])
+map-proxy m f (request a' cont[a])
+  = request a' ((map-proxy m f) ∘ cont[a])
+map-proxy m f (respond b cont[b']) 
+  = respond b ((map-proxy m f) ∘ cont[b'])
 
+
+bind-proxy
+  :  {m : Functor (Sets 0ℓ) (Sets 0ℓ)}
+  -> {a' a b' b : Set}
+  -> {r r' : Set}
+  -> Proxy (Functor.F₀ m) a' a b' b r
+  -> (r -> Proxy (Functor.F₀ m) a' a b' b r')
+  -> Proxy (Functor.F₀ m) a' a b' b r'
+bind-proxy {m} (pure r) cont[r] = cont[r] r
+bind-proxy {m} (effect mx  cont[x])  cont[r] 
+  = effect mx  \ x  -> bind-proxy{m} (cont[x] x)   cont[r]
+bind-proxy {m} (request a' cont[a])  cont[r] 
+  = request a' \ a  -> bind-proxy{m} (cont[a] a)   cont[r]
+bind-proxy {m} (respond b  cont[b']) cont[r] 
+  = respond b  \ b' -> bind-proxy{m} (cont[b'] b') cont[r]
+
+_p>>=_
+  :  {m : Functor (Sets 0ℓ) (Sets 0ℓ)}
+  -> {a' a b' b : Set}
+  -> {r r' : Set}
+  -> Proxy (Functor.F₀ m) a' a b' b r
+  -> (r -> Proxy (Functor.F₀ m) a' a b' b r')
+  -> Proxy (Functor.F₀ m) a' a b' b r'
+_p>>=_ {m} = bind-proxy {m}
 
 id-law  
-  :  (m : Functor (Sets 0ℓ) (Sets 0ℓ)) 
+  :  (m : Functor (Sets 0ℓ) (Sets 0ℓ))
   -> {a' a b' b : Set}
   -> {r : Set}
   -> (p : Proxy (Functor.F₀ m) a' a b' b r)
@@ -68,11 +105,11 @@ id-law m (request t[a'] cont[a])
       request t[a'] (\ a -> map-proxy m (\r -> r) (cont[a] a))
         ≡⟨ request t[a'] $≡ (extensionality (λ a -> id-law m (cont[a] a))) ⟩
       (request t[a'] cont[a]) ∎
-id-law m (respond t[b'] cont[b])
+id-law m (respond t[b] cont[b'])
   = begin 
-      respond t[b'] (\ b -> map-proxy m (\r -> r) (cont[b] b))
-        ≡⟨ respond t[b'] $≡ (extensionality (λ b -> id-law m (cont[b] b))) ⟩
-      (respond t[b'] cont[b]) ∎ 
+      respond t[b] (\ b' -> map-proxy m (\r -> r) (cont[b'] b'))
+        ≡⟨ respond t[b] $≡ (extensionality (λ b' -> id-law m (cont[b'] b'))) ⟩
+      (respond t[b] cont[b']) ∎ 
 
 
 assoc-law
@@ -94,12 +131,12 @@ assoc-law f g m (request a' cont[a])
          ≡⟨ request a' $≡ 
               extensionality (\ a -> assoc-law f g m (cont[a] a)) ⟩ 
       request a' (λ a → map-proxy m g (map-proxy m f (cont[a] a))) ∎)
-assoc-law f g m (respond b' cont[b]) 
+assoc-law f g m (respond b cont[b']) 
   = begin 
-      (respond b' (\ b -> map-proxy m (\ r -> g (f r)) (cont[b] b))  
-         ≡⟨ respond b' $≡ 
-              extensionality (\ b -> assoc-law f g m (cont[b] b)) ⟩ 
-      respond b' (λ b → map-proxy m g (map-proxy m f (cont[b] b))) ∎)
+      (respond b (\ b' -> map-proxy m (\ r -> g (f r)) (cont[b'] b'))  
+         ≡⟨ respond b $≡ 
+              extensionality (\ b' -> assoc-law f g m (cont[b'] b')) ⟩ 
+      respond b (λ b' → map-proxy m g (map-proxy m f (cont[b'] b'))) ∎)
 
 resp-eq : {a a' b b' : Set} {A B : Set} {f g : A → B} →
       ({x : A} → f x ≡ g x) →
@@ -124,11 +161,11 @@ resp-eq {f = f} {g = g} pointwiseEq m (request a' cont[a])
     ≡⟨ request a' $≡ (extensionality (\ a -> resp-eq pointwiseEq m (cont[a] a))) ⟩ 
        request a' (\ a -> map-proxy m g (cont[a] a)) 
     ∎
-resp-eq {f = f} {g = g} pointwiseEq m (respond b' cont[b])
+resp-eq {f = f} {g = g} pointwiseEq m (respond b cont[b'])
   = begin 
-       respond b' (\ b -> map-proxy m f (cont[b] b)) 
-    ≡⟨ respond b' $≡ (extensionality (\ b -> resp-eq pointwiseEq m (cont[b] b))) ⟩ 
-       respond b' (\ b -> map-proxy m g (cont[b] b)) 
+       respond b (\ b' -> map-proxy m f (cont[b'] b')) 
+    ≡⟨ respond b $≡ (extensionality (\ b' -> resp-eq pointwiseEq m (cont[b'] b'))) ⟩ 
+       respond b (\ b' -> map-proxy m g (cont[b'] b')) 
     ∎
 
 proxy-F : 
